@@ -31,10 +31,12 @@ var (
 	_ DDLNode = &CreateTableStmt{}
 	_ DDLNode = &CreateViewStmt{}
 	_ DDLNode = &CreateSequenceStmt{}
+	_ DDLNode = &CreateEventStmt{}
 	_ DDLNode = &DropDatabaseStmt{}
 	_ DDLNode = &DropIndexStmt{}
 	_ DDLNode = &DropTableStmt{}
 	_ DDLNode = &DropSequenceStmt{}
+	_ DDLNode = &DropEventStmt{}
 	_ DDLNode = &RenameTableStmt{}
 	_ DDLNode = &TruncateTableStmt{}
 	_ DDLNode = &RepairTableStmt{}
@@ -1175,6 +1177,36 @@ func (n *DropSequenceStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+type DropEventStmt struct {
+	ddlNode
+
+	IfExists  bool
+	EventName *TableName
+	LockAlg   *IndexLockAndAlgorithm
+}
+
+// Restore implements Node interface.
+func (n *DropEventStmt) Restore(ctx *format.RestoreCtx) error {
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *DropEventStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*DropEventStmt)
+	for i, val := range n.Sequences {
+		node, ok := val.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Sequences[i] = node.(*TableName)
+	}
+	return v.Leave(n)
+}
+
 // RenameTableStmt is a statement to rename a table.
 // See http://dev.mysql.com/doc/refman/5.7/en/rename-table.html
 type RenameTableStmt struct {
@@ -1397,6 +1429,30 @@ func (n *CreateSequenceStmt) Accept(v Visitor) (Node, bool) {
 	}
 	n.Name = node.(*TableName)
 	return v.Leave(n)
+}
+
+// CreateEventStmt is a statement to create a Event.
+type CreateEventStmt struct {
+	ddlNode
+	IfNotExists   bool
+	EventName     *TableName
+	EventSchedule *EventSchedule
+	Action        *StmtNode
+}
+
+// Restore implements Node interface.
+func (n *CreateEventStmt) Restore(ctx *format.RestoreCtx) error {
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *CreateEventStmt) Accept(v Visitor) (node Node, ok bool) {
+	newNode, skipChild := v.Enter(n)
+	if skipChild {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*CreateEventStmt)
+
 }
 
 // IndexLockAndAlgorithm stores the algorithm option and the lock option.
@@ -2100,6 +2156,13 @@ func (n *SequenceOption) Restore(ctx *format.RestoreCtx) error {
 		return errors.Errorf("invalid SequenceOption: %d", n.Tp)
 	}
 	return nil
+}
+
+type EventSchedule struct {
+	Interval ExprNode
+	TimeUnit TimeUnitType
+	Start    ExprNode
+	End      ExprNode
 }
 
 // ColumnPositionType is the type for ColumnPosition.
