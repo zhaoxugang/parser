@@ -266,6 +266,11 @@ type TableName struct {
 	TableSample    *TableSample
 }
 
+type EventName struct {
+	node
+	Name model.CIStr
+}
+
 // Restore implements Node interface.
 func (n *TableName) restoreName(ctx *format.RestoreCtx) {
 	if n.Schema.String() != "" {

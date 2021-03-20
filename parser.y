@@ -295,6 +295,7 @@ import (
 	always                "ALWAYS"
 	any                   "ANY"
 	ascii                 "ASCII"
+	at                    "AT"
 	autoIdCache           "AUTO_ID_CACHE"
 	autoIncrement         "AUTO_INCREMENT"
 	autoRandom            "AUTO_RANDOM"
@@ -380,6 +381,7 @@ import (
 	escape                "ESCAPE"
 	event                 "EVENT"
 	events                "EVENTS"
+	every                 "EVERY"
 	evolve                "EVOLVE"
 	exchange              "EXCHANGE"
 	exclusive             "EXCLUSIVE"
@@ -529,6 +531,7 @@ import (
 	rowFormat             "ROW_FORMAT"
 	rtree                 "RTREE"
 	san                   "SAN"
+	schedule              "SCHEDULE"
 	second                "SECOND"
 	secondaryEngine       "SECONDARY_ENGINE"
 	secondaryLoad         "SECONDARY_LOAD"
@@ -832,6 +835,7 @@ import (
 	CreateBindingStmt      "CREATE BINDING  statement"
 	CreateSequenceStmt     "CREATE SEQUENCE statement"
 	CreateStatisticsStmt   "CREATE STATISTICS statement"
+	CreateEventStmt        "Statement that can create a event"
 	DoStmt                 "Do statement"
 	DropDatabaseStmt       "DROP DATABASE statement"
 	DropImportStmt         "DROP IMPORT statement"
@@ -895,6 +899,8 @@ import (
 	ShutdownStmt           "SHUTDOWN statement"
 	CreateViewSelectOpt    "Select/Union/Except/Intersect statement in CREATE VIEW ... AS SELECT"
 	BindableStmt           "Statement that can be created binding on"
+	EventSchedule          "Statement that can be created schedule on"
+	AsyncableStmt          "Body of schedule"
 
 %type	<item>
 	AdminShowSlow                          "Admin Show Slow statement"
@@ -959,6 +965,7 @@ import (
 	EscapedTableRef                        "escaped table reference"
 	ExpressionList                         "expression list"
 	ExtendedPriv                           "Extended privileges like LOAD FROM S3 or dynamic privileges"
+	EventName                              "Event name"
 	MaxValueOrExpressionList               "maxvalue or expression list"
 	ExpressionListOpt                      "expression list opt"
 	FetchFirstOpt                          "Fetch First/Next Option"
@@ -3305,6 +3312,96 @@ DropStatisticsStmt:
 	{
 		$$ = &ast.DropStatisticsStmt{StatsName: $3}
 	}
+
+CreateEventStmt:
+	"CREATE" "EVENT" IfNotExists EventName "ON" "SCHEDULE" EventSchedule "DO" AsyncableStmt
+	{
+		$$ = &ast.CreateEventStmt{
+			IfNotExists:   $3.(bool),
+			EventName:     $4.(*ast.EventName),
+			EventSchedule: $7,
+			Action:        $9,
+		}
+	}
+
+EventSchedule:
+	"AT" Expression
+	{
+		$$ = &ast.EventSchedule{
+			Start: $2,
+			End:   $2,
+		}
+	}
+|	"EVERY" Expression "START" Expression "END" Expression
+	{
+		$$ = &ast.EventSchedule{
+			Interval: $1,
+			Start:    $2,
+			End:      $3,
+		}
+	}
+
+AsyncableStmt:
+	AdminStmt
+|	AlterDatabaseStmt
+|	AlterTableStmt
+|	AlterUserStmt
+|	AlterInstanceStmt
+|	AlterSequenceStmt
+|	AnalyzeTableStmt
+|	BinlogStmt
+|	BRIEStmt
+|	DeleteFromStmt
+|	ExplainStmt
+|	ChangeStmt
+|	CreateDatabaseStmt
+|	CreateIndexStmt
+|	CreateTableStmt
+|	CreateViewStmt
+|	CreateUserStmt
+|	CreateRoleStmt
+|	CreateBindingStmt
+|	CreateSequenceStmt
+|	CreateStatisticsStmt
+|	DoStmt
+|	DropDatabaseStmt
+|	DropIndexStmt
+|	DropTableStmt
+|	DropSequenceStmt
+|	DropViewStmt
+|	DropUserStmt
+|	DropRoleStmt
+|	DropStatisticsStmt
+|	DropStatsStmt
+|	DropBindingStmt
+|	FlushStmt
+|	FlashbackTableStmt
+|	GrantStmt
+|	GrantProxyStmt
+|	GrantRoleStmt
+|	CallStmt
+|	InsertIntoStmt
+|	IndexAdviseStmt
+|	KillStmt
+|	LoadDataStmt
+|	LoadStatsStmt
+|	PurgeImportStmt
+|	RenameTableStmt
+|	ReplaceIntoStmt
+|	RecoverTableStmt
+|	RevokeStmt
+|	RevokeRoleStmt
+|	SetOprStmt1
+|	SetStmt
+|	SetRoleStmt
+|	SetDefaultRoleStmt
+|	SplitRegionStmt
+|	ShowStmt
+|	TruncateTableStmt
+|	UpdateStmt
+|	UnlockTablesStmt
+|	LockTablesStmt
+|	ShutdownStmt
 
 /**************************************CreateIndexStmt***************************************
  * See https://dev.mysql.com/doc/refman/8.0/en/create-index.html
@@ -7504,6 +7601,12 @@ TableName:
 |	Identifier '.' Identifier
 	{
 		$$ = &ast.TableName{Schema: model.NewCIStr($1), Name: model.NewCIStr($3)}
+	}
+
+EventName:
+	Identifier
+	{
+		$$ = &ast.EventName{Name: model.NewCIStr($1)}
 	}
 
 TableNameList:
