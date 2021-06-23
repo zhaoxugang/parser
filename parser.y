@@ -27,6 +27,7 @@ package parser
 
 import (
 	"strings"
+	"fmt"
 
 	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/ast"
@@ -811,6 +812,8 @@ import (
 	WindowFuncCall         "WINDOW function call"
 	RepeatableOpt          "Repeatable optional in sample clause"
 	ProcedureCall          "Procedure call with Identifier or identifier"
+	StartOpts              "Start opts"
+	EndOpts                "End opts"
 
 %type	<statement>
 	AdminStmt              "Check table statement or show ddl statement"
@@ -1268,7 +1271,9 @@ import (
 	PlacementRole                          "Placement rules role option"
 	PlacementOptions                       "Placement rules options"
 	PlacementSpec                          "Placement rules specification"
-	PlacementSpecList                      "Placement rules specifications"
+
+	//	EventSchedule                          "Statement that can be created schedule on"
+	PlacementSpecList "Placement rules specifications"
 
 %type	<ident>
 	AsOpt             "AS or EmptyString"
@@ -3316,10 +3321,11 @@ DropStatisticsStmt:
 CreateEventStmt:
 	"CREATE" "EVENT" IfNotExists EventName "ON" "SCHEDULE" EventSchedule "DO" AsyncableStmt
 	{
+		fmt.Println("===爹爹来了")
 		$$ = &ast.CreateEventStmt{
 			IfNotExists:   $3.(bool),
 			EventName:     $4.(*ast.EventName),
-			EventSchedule: $7,
+			EventSchedule: $7.(*ast.EventSchedule),
 			Action:        $9,
 		}
 	}
@@ -3332,13 +3338,32 @@ EventSchedule:
 			End:   $2,
 		}
 	}
-|	"EVERY" Expression "START" Expression "END" Expression
+|	"EVERY" Expression StartOpts EndOpts
 	{
+		fmt.Println("===爸爸来了1")
 		$$ = &ast.EventSchedule{
-			Interval: $1,
-			Start:    $2,
-			End:      $3,
+			Interval: $2,
+			Start:    $3,
+			End:      $4,
 		}
+	}
+
+StartOpts:
+	{
+		$$ = nil
+	}
+|	"START" Expression
+	{
+		$$ = $2
+	}
+
+EndOpts:
+	{
+		$$ = nil
+	}
+|	"END" Expression
+	{
+		$$ = $2
 	}
 
 AsyncableStmt:
@@ -10448,6 +10473,7 @@ Statement:
 |	UnlockTablesStmt
 |	LockTablesStmt
 |	ShutdownStmt
+|	CreateEventStmt
 
 TraceableStmt:
 	DeleteFromStmt

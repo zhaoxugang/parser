@@ -192,6 +192,8 @@ const (
 	RoleEdgeTable = "role_edges"
 	// DefaultRoleTable is the table contain default active role info
 	DefaultRoleTable = "default_roles"
+	// Schedule event table
+	ScheduleEventInfo = "schedule_event_info"
 )
 
 // PrivilegeType  privilege

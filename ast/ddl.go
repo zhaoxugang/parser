@@ -31,7 +31,7 @@ var (
 	_ DDLNode = &CreateTableStmt{}
 	_ DDLNode = &CreateViewStmt{}
 	_ DDLNode = &CreateSequenceStmt{}
-	_ DDLNode = &CreateEventStmt{}
+	_ Node    = &CreateEventStmt{}
 	_ DDLNode = &DropDatabaseStmt{}
 	_ DDLNode = &DropIndexStmt{}
 	_ DDLNode = &DropTableStmt{}
@@ -1192,18 +1192,6 @@ func (n *DropEventStmt) Restore(ctx *format.RestoreCtx) error {
 
 // Accept implements Node Accept interface.
 func (n *DropEventStmt) Accept(v Visitor) (Node, bool) {
-	newNode, skipChildren := v.Enter(n)
-	if skipChildren {
-		return v.Leave(newNode)
-	}
-	n = newNode.(*DropEventStmt)
-	for i, val := range n.Sequences {
-		node, ok := val.Accept(v)
-		if !ok {
-			return n, false
-		}
-		n.Sequences[i] = node.(*TableName)
-	}
 	return v.Leave(n)
 }
 
@@ -1433,11 +1421,11 @@ func (n *CreateSequenceStmt) Accept(v Visitor) (Node, bool) {
 
 // CreateEventStmt is a statement to create a Event.
 type CreateEventStmt struct {
-	ddlNode
+	stmtNode
 	IfNotExists   bool
-	EventName     *TableName
+	EventName     *EventName
 	EventSchedule *EventSchedule
-	Action        *StmtNode
+	Action        StmtNode
 }
 
 // Restore implements Node interface.
@@ -1447,12 +1435,19 @@ func (n *CreateEventStmt) Restore(ctx *format.RestoreCtx) error {
 
 // Accept implements Node Accept interface.
 func (n *CreateEventStmt) Accept(v Visitor) (node Node, ok bool) {
-	newNode, skipChild := v.Enter(n)
-	if skipChild {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
 		return v.Leave(newNode)
 	}
 	n = newNode.(*CreateEventStmt)
-
+	if n.EventSchedule != nil {
+		node, ok := n.EventSchedule.Accept(v)
+		if !ok {
+			return v.Leave(n)
+		}
+		n.EventSchedule = node.(*EventSchedule)
+	}
+	return v.Leave(n)
 }
 
 // IndexLockAndAlgorithm stores the algorithm option and the lock option.
@@ -2159,10 +2154,47 @@ func (n *SequenceOption) Restore(ctx *format.RestoreCtx) error {
 }
 
 type EventSchedule struct {
+	stmtNode
 	Interval ExprNode
 	TimeUnit TimeUnitType
 	Start    ExprNode
 	End      ExprNode
+}
+
+// Restore implements Node interface.
+func (n *EventSchedule) Restore(ctx *format.RestoreCtx) error {
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *EventSchedule) Accept(v Visitor) (Node, bool) {
+	newNode, skipChild := v.Enter(n)
+	if skipChild {
+		return v.Leave(n)
+	}
+	n = newNode.(*EventSchedule)
+	if n.Interval != nil {
+		node, ok := n.Interval.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Interval = node.(ExprNode)
+	}
+	if n.Start != nil {
+		node, ok := n.Start.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Start = node.(ExprNode)
+	}
+	if n.End != nil {
+		node, ok := n.End.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.End = node.(ExprNode)
+	}
+	return v.Leave(n)
 }
 
 // ColumnPositionType is the type for ColumnPosition.
